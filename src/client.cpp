@@ -7,12 +7,12 @@
 #include <unordered_map>
 #include "packets.h"
 
-#define WINDOW_W 640
-#define WINDOW_H 480
+constexpr auto WINDOW_W = 640;
+constexpr auto WINDOW_H = 480;
 
 // player related constants
-#define MOVE_SPEED 5.0f
-#define PLAYER_WH 50.0f
+constexpr auto MOVE_SPEED = 5.0f;
+constexpr auto PLAYER_WH = 50.0f;
 
 typedef struct Coordonnees {
     float x, y;
@@ -20,15 +20,17 @@ typedef struct Coordonnees {
 
 typedef struct Joueur {
     SDL_FRect r;
+    SDL_FRect dr;
 } Joueur;
 
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
-static SDL_FRect player;
+static Joueur player;
+static SDL_FRect camera;
 
 static std::unordered_map<int, Joueur> joueurs;
 
-std::vector<std::string> split_string(const std::string& str, char delim = '|') {
+static std::vector<std::string> split_string(const std::string& str, char delim = '|') {
     std::vector<std::string> tokens;
     std::stringstream ss(str);
     std::string token;
@@ -39,37 +41,42 @@ std::vector<std::string> split_string(const std::string& str, char delim = '|') 
     return tokens;
 }
 
-std::string StringifyPosition(float x, float y) {
+static std::string StringifyPosition(float x, float y) {
     std::string msg = std::to_string(x) + "|" + std::to_string(y);
     return msg;
 }
 
-void SetupSDL() {
+static void SetupSDL() {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::cout << "couldn't initialize SDL video module " << std::endl;
+        std::cerr << "couldn't initialize SDL video module " << std::endl;
 
         exit(EXIT_FAILURE);
     }
     if (!SDL_CreateWindowAndRenderer("feneettttre", WINDOW_W, WINDOW_H, 0, &window, &renderer)) {
-        std::cout << "couldn't create a window and a renderer" << std::endl;
+        std::cerr << "couldn't create a window and a renderer" << std::endl;
     }
 }
 
-void WindowDraw() {
+static void WindowDraw() {
     SDL_SetRenderDrawColorFloat(renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
     SDL_RenderClear(renderer);
+
+
+    // TODO: redo drawing
+
     SDL_SetRenderDrawColorFloat(renderer, 1.0f, 0.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT);
-    SDL_RenderFillRect(renderer, &player);
+
+    SDL_RenderFillRect(renderer, &player.dr);
 
     for (auto& [_, j] : joueurs) {
-        SDL_RenderFillRect(renderer, &j.r);
+        SDL_RenderFillRect(renderer, &j.dr); // <-- CHANGED HERE
     }
 
     SDL_RenderPresent(renderer);
 
 }
 
-Coordonnees ProcessKeypresses() {
+static Coordonnees ProcessKeypresses() {
     const bool* keystates = SDL_GetKeyboardState(0);
     Coordonnees dir{};
 
@@ -77,12 +84,12 @@ Coordonnees ProcessKeypresses() {
     if (keystates[SDL_SCANCODE_RIGHT]) dir.x = 1;
     if (keystates[SDL_SCANCODE_UP])    dir.y = -1;
     if (keystates[SDL_SCANCODE_DOWN])  dir.y = 1;
-    
+
 
     return dir;
 }
 
-bool Update() {
+static bool Update() {
 
     SDL_Event event;
     Coordonnees dir{};
@@ -95,12 +102,28 @@ bool Update() {
     }
 
     dir = ProcessKeypresses();
-    player.x += dir.x * MOVE_SPEED;
-    player.y += dir.y * MOVE_SPEED;
+    player.r.x += dir.x * MOVE_SPEED;
+    player.r.y += dir.y * MOVE_SPEED;
+
+    camera.x = player.r.x + player.r.w / 2 - camera.w / 2;
+    camera.y = player.r.y + player.r.h / 2 - camera.h / 2;
+
+    player.dr.x = player.r.x - camera.x;
+    player.dr.y = player.r.y - camera.y;
+    player.dr.w = player.r.w;
+    player.dr.h = player.r.h;
+
+    for (auto& [id, j] : joueurs) {
+        j.dr.x = j.r.x - camera.x;
+        j.dr.y = j.r.y - camera.y;
+        j.dr.w = j.r.w;
+        j.dr.h = j.r.h;
+    }
+
     return true;
 }
 
-void CleanSDL() {
+static void CleanSDL() {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -119,9 +142,9 @@ void ParsePacket(ENetEvent* e) {
 
     switch (packet_type) {
     case PacketTypes::PLAYER_CONNECT:
-        joueurs[id] = { {0.0f, 0.0f, PLAYER_WH, PLAYER_WH} };
+        joueurs[id] = { {0.0f, 0.0f, PLAYER_WH, PLAYER_WH}, {0.0f, 0.0f, PLAYER_WH, PLAYER_WH} }; // Added dr here
         break;
-    case PacketTypes::PLAYER_DISCONNECT: 
+    case PacketTypes::PLAYER_DISCONNECT:
         joueurs.erase(id);
         break;
     case PacketTypes::UPDATE_POSITION: {
@@ -129,6 +152,7 @@ void ParsePacket(ENetEvent* e) {
         float y = std::stof(tokens[3]);
         joueurs[id].r.x = x;
         joueurs[id].r.y = y;
+        break;
     }
     }
 }
@@ -208,7 +232,7 @@ void runClient(const char* addr) {
         }
 
         if (packet_send_timer > packet_send_rate) {
-            pos_string = StringifyPosition(player.x, player.y);
+            pos_string = StringifyPosition(player.r.x, player.r.y);
             SendPacket(peer, pos_string.c_str());
             packet_send_timer = 0;
         }
@@ -218,7 +242,7 @@ void runClient(const char* addr) {
 
         // Vérifier l'état de la connexion
         if (peer->state == ENET_PEER_STATE_DISCONNECTED) {
-            std::cout << "Connexion perdue." << std::endl;
+            std::cerr << "Connexion perdue." << std::endl;
         }
     }
     // game loop end
@@ -249,10 +273,15 @@ int main(int argc, char** argv) {
     }
     SetupSDL();
 
-    player.w = PLAYER_WH;
-    player.h = PLAYER_WH;
-    player.x = 0;
-    player.y = 0;
+    player.r.w = PLAYER_WH;
+    player.r.h = PLAYER_WH;
+    player.r.x = 0;
+    player.r.y = 0;
+
+    camera.w = WINDOW_W;
+    camera.h = WINDOW_H;
+    camera.x = 0;
+    camera.y = 0;
 
     runClient("127.0.0.1");
     enet_deinitialize();
