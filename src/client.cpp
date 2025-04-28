@@ -7,8 +7,8 @@
 #include <unordered_map>
 #include "packets.h"
 
-constexpr auto WINDOW_W = 640;
-constexpr auto WINDOW_H = 480;
+constexpr auto WINDOW_W = 1280;
+constexpr auto WINDOW_H = 720;
 
 // player related constants
 constexpr auto MOVE_SPEED = 5.0f;
@@ -89,7 +89,12 @@ static Coordonnees ProcessKeypresses() {
     return dir;
 }
 
-static bool Update() {
+static void UpdateCamera() {
+    camera.x = player.r.x + player.r.w / 2 - camera.w / 2;
+    camera.y = player.r.y + player.r.h / 2 - camera.h / 2;
+}
+
+static bool Update(bool& fullscreen) {
 
     SDL_Event event;
     Coordonnees dir{};
@@ -98,15 +103,28 @@ static bool Update() {
         switch (event.type) {
         case SDL_EVENT_QUIT:
             return false;
+        case SDL_EVENT_KEY_UP:
+            if (event.key.key == SDLK_RETURN) {
+                fullscreen = !fullscreen;
+                SDL_SetWindowFullscreen(window, fullscreen);
+                int w, h;
+
+                SDL_GetCurrentRenderOutputSize(renderer, &w, &h);
+                std::cout << w << " " << h << std::endl;
+
+                camera.w = (float)w;
+                camera.h = (float)h;
+            }
+
         }
     }
 
+    
     dir = ProcessKeypresses();
     player.r.x += dir.x * MOVE_SPEED;
     player.r.y += dir.y * MOVE_SPEED;
 
-    camera.x = player.r.x + player.r.w / 2 - camera.w / 2;
-    camera.y = player.r.y + player.r.h / 2 - camera.h / 2;
+    UpdateCamera();
 
     player.dr.x = player.r.x - camera.x;
     player.dr.y = player.r.y - camera.y;
@@ -219,11 +237,11 @@ void runClient(const char* addr) {
     bool running = true;
 
 
-
+    bool fullscreen = false;
     while (running) {
         start = (Uint32)SDL_GetTicks();
-
-        running = Update();
+        
+        running = Update(fullscreen);
         WindowDraw();
         MsgLoop(client);
 
