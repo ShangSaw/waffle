@@ -1,79 +1,44 @@
-﻿#include <iostream>
+﻿#include "Game.hpp"
+
+int main(int argc, char** argv) {
+    try {
+        Game game{ "127.0.0.1", 12345 };
+        game.run();
+        return EXIT_SUCCESS;
+    }
+    catch (std::exception& e) {
+        std::cerr << "Caught exception in main(): " << e.what() << "\n";
+        return EXIT_FAILURE;
+    }
+    catch (...) {
+        std::cerr << "Caught unknown exception in main()\n";
+        return EXIT_FAILURE;
+    }
+}
+
+
+/*
+
+#include <iostream>
+#include <fstream>
+
+#include "curl/curl.h"
 #include "enet/enet.h"
 #include "SDL3/SDL.h"
-#include <sstream>
-#include <vector>
-#include <string>
-#include <unordered_map>
-#include "packets.h"
+#include "SDL3_image/SDL_image.h"
 
-constexpr auto WINDOW_W = 1280;
-constexpr auto WINDOW_H = 720;
+#include "client.hpp"
+#include "util.hpp"
 
-// player related constants
-constexpr auto MOVE_SPEED = 5.0f;
-constexpr auto PLAYER_WH = 50.0f;
-
-typedef struct Coordonnees {
-    float x, y;
-} Coordonnees;
-
-typedef struct Joueur {
-    SDL_FRect r;
-    SDL_FRect dr;
-} Joueur;
-
-static SDL_Window* window = NULL;
-static SDL_Renderer* renderer = NULL;
 static Joueur player;
 static SDL_FRect camera;
 
-static std::unordered_map<int, Joueur> joueurs;
 
-static std::vector<std::string> split_string(const std::string& str, char delim = '|') {
-    std::vector<std::string> tokens;
-    std::stringstream ss(str);
-    std::string token;
-    while (getline(ss, token, delim)) {
-        if (!token.empty())
-            tokens.push_back(token);
-    }
-    return tokens;
-}
-
-static std::string StringifyPosition(float x, float y) {
-    std::string msg = std::to_string(x) + "|" + std::to_string(y);
-    return msg;
-}
-
-static void SetupSDL() {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::cerr << "couldn't initialize SDL video module " << std::endl;
-
-        exit(EXIT_FAILURE);
-    }
-    if (!SDL_CreateWindowAndRenderer("feneettttre", WINDOW_W, WINDOW_H, 0, &window, &renderer)) {
-        std::cerr << "couldn't create a window and a renderer" << std::endl;
-    }
-}
-
-static void WindowDraw() {
-    SDL_SetRenderDrawColorFloat(renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
-    SDL_RenderClear(renderer);
-
-
-    // TODO: redo drawing
-
-    SDL_SetRenderDrawColorFloat(renderer, 1.0f, 0.0f, 0.0f, SDL_ALPHA_OPAQUE_FLOAT);
-
-    SDL_RenderFillRect(renderer, &player.dr);
-
-    for (auto& [_, j] : joueurs) {
-        SDL_RenderFillRect(renderer, &j.dr); // <-- CHANGED HERE
-    }
-
-    SDL_RenderPresent(renderer);
-
+std::string StringifyPosition(float x, float y) {
+    return std::to_string(PacketTypes::UPDATE_POSITION) +
+        "|" + std::to_string(player.id) +
+        "|" + std::to_string(x) +
+        "|" + std::to_string(y);
 }
 
 static Coordonnees ProcessKeypresses() {
@@ -89,10 +54,7 @@ static Coordonnees ProcessKeypresses() {
     return dir;
 }
 
-static void UpdateCamera() {
-    camera.x = player.r.x + player.r.w / 2 - camera.w / 2;
-    camera.y = player.r.y + player.r.h / 2 - camera.h / 2;
-}
+
 
 static bool Update(bool& fullscreen) {
 
@@ -121,8 +83,17 @@ static bool Update(bool& fullscreen) {
 
     
     dir = ProcessKeypresses();
-    player.r.x += dir.x * MOVE_SPEED;
-    player.r.y += dir.y * MOVE_SPEED;
+    float newX = player.r.x + dir.x * MOVE_SPEED;
+    float newY = player.r.y + dir.y * MOVE_SPEED;
+
+    // Clamp the player's position to the world boundaries
+    newX = max(newX, (float)WORLD_MIN_X);
+    newX = min(newX, (float)(WORLD_MAX_X - PLAYER_WH));
+    newY = max(newY, (float)WORLD_MIN_Y);
+    newY = min(newY, (float)(WORLD_MAX_Y - PLAYER_WH));
+
+    player.r.x = newX;
+    player.r.y = newY;
 
     UpdateCamera();
 
@@ -141,37 +112,42 @@ static bool Update(bool& fullscreen) {
     return true;
 }
 
-static void CleanSDL() {
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-}
-
 void SendPacket(ENetPeer* peer, const char* data) {
     ENetPacket* packet = enet_packet_create(data, strlen(data) + 1, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
     enet_peer_send(peer, 0, packet);
 }
 
 void ParsePacket(ENetEvent* e) {
+
+
     std::string data(reinterpret_cast<char*>(e->packet->data));
     std::vector<std::string> tokens = split_string(data);
     int packet_type = std::stoi(tokens[0]);
-    int id = std::stoi(tokens[1]);
 
     switch (packet_type) {
-    case PacketTypes::PLAYER_CONNECT:
-        joueurs[id] = { {0.0f, 0.0f, PLAYER_WH, PLAYER_WH}, {0.0f, 0.0f, PLAYER_WH, PLAYER_WH} }; // Added dr here
+    case PacketTypes::PLAYER_CONNECT: {
+        if (tokens.size() < 4) break;
+        int id = std::stoi(tokens[1]);
+        float x = std::stof(tokens[2]);
+        float y = std::stof(tokens[3]);
+        joueurs[id] = { id, {x, y, PLAYER_WH, PLAYER_WH}, {0,0,0,0}, nullptr };
         break;
-    case PacketTypes::PLAYER_DISCONNECT:
-        joueurs.erase(id);
-        break;
+    }
+
     case PacketTypes::UPDATE_POSITION: {
+        if (tokens.size() < 4) break;
+        int id = std::stoi(tokens[1]);
         float x = std::stof(tokens[2]);
         float y = std::stof(tokens[3]);
         joueurs[id].r.x = x;
         joueurs[id].r.y = y;
         break;
     }
+    case PacketTypes::SEND_OWN_ID:
+        int id = std::stoi(tokens[1]);
+        player.id = id;
+        std::cout << "Mon ID client est : " << player.id << std::endl;
+        break;
     }
 }
 
@@ -251,6 +227,7 @@ void runClient(const char* addr) {
 
         if (packet_send_timer > packet_send_rate) {
             pos_string = StringifyPosition(player.r.x, player.r.y);
+            std::cout << "[CLIENT] Envoie position : " << pos_string << std::endl;
             SendPacket(peer, pos_string.c_str());
             packet_send_timer = 0;
         }
@@ -264,7 +241,6 @@ void runClient(const char* addr) {
         }
     }
     // game loop end
-    CleanSDL();
 
 
 
@@ -289,12 +265,41 @@ int main(int argc, char** argv) {
         std::cerr << "Error: enet not initialized correctly" << std::endl;
         return EXIT_FAILURE;
     }
-    SetupSDL();
+
+
+    // code pour telecharger un skin custom pour le joueur
+    std::string imageUrl = "https://pngimg.com/uploads/anime_girl/anime_girl_PNG93.png";
+    std::string destination = "image_renamed.png";
+
+    if (downloadPngImage(imageUrl, destination)) {
+        std::cout << "Téléchargement réussi !" << std::endl;
+
+        SDL_Surface* surface = IMG_Load("image_renamed.png");
+        if (!surface) {
+            SDL_Log("Erreur lors du chargement de l'image : %s", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+
+        player.tex = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_DestroySurface(surface);
+
+        if (!player.tex) {
+            SDL_Log("Erreur lors de la création de la texture : %s", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+    }
+    else {
+        std::cout << "Échec du téléchargement." << std::endl;
+    }
+
+    // fin du code pour le skin custom
 
     player.r.w = PLAYER_WH;
     player.r.h = PLAYER_WH;
     player.r.x = 0;
     player.r.y = 0;
+
+    player.id = 0;
 
     camera.w = WINDOW_W;
     camera.h = WINDOW_H;
@@ -303,5 +308,8 @@ int main(int argc, char** argv) {
 
     runClient("127.0.0.1");
     enet_deinitialize();
+    
     return EXIT_SUCCESS;
 }
+
+*/

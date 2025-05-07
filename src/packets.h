@@ -1,5 +1,0 @@
-enum PacketTypes {
-	PLAYER_CONNECT = 0,
-	PLAYER_DISCONNECT,
-	UPDATE_POSITION,
-};

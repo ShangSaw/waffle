@@ -9,13 +9,18 @@ client-side:
 ## DEPLACEMENTS [DONE]
 
 client-side:
-- [x] liste des joueurs présents via une unordered_map
-- [x] draw de tous les joueurs
-- [x] reformatter les strings de paquets
+- [ ] refactor
+- [ ] systeme de scene
+- [ ] inclure un systeme de gui pour envoyer un pseudo
+
 
 server-side:
-- [x] broadcast de des evenements de connexion et deconnexion
-- [x] reformatter les strings de paquets
+- [ ] refactor
+- [ ] appliquer les skins a tous les joueurs avec un packet dédié
+- [ ] enregistrer des username pour tous les joueurs avec un packet dédié
+- [ ] autorité et sécurité
+- [ ] système de ban
+- [ ] systeme de mute
 
 
 ```
@@ -23,4 +28,5 @@ formattage des paquets
 CONNEXION `0|ID`
 DECONNEXION `1|ID`
 POSITION `2|ID|X|Y`
+ENVOI ID `3|ID`
 ```
