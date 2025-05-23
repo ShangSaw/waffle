@@ -1,18 +1,16 @@
 #include "InputManager.hpp"
+#include <iostream>
 
 void InputManager::pollEvents() {
     movement_ = { 0,0 };
 
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        ImGui_ImplSDL3_ProcessEvent(&e);
         switch (e.type) {
         case SDL_EVENT_QUIT:
             quit_ = true;
             break;
-        case SDL_EVENT_KEY_UP:
-            if (e.key.key == SDLK_RETURN) {
-                toggleFS_ = !toggleFS_;
-            }
         }
     }
 

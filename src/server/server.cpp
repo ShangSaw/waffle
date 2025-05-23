@@ -1,6 +1,8 @@
 #include "server.hpp"
 #include <iostream>
 #include <string>
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
 
 
 Server::Server(uint16_t port, size_t maxClients)
@@ -50,20 +52,28 @@ void Server::handleConnect(const ENetEvent& event) {
 
     // Send the new player's own ID
     {
-        std::string idMsg = std::to_string(PacketTypes::SEND_OWN_ID)
-            + "|" + std::to_string(newId);
+        json msgJson = {
+            {"type", PacketTypes::SEND_OWN_ID},
+            {"id", newId},
+        };
+
         enet_peer_send(event.peer, 0,
-            enet_packet_create(idMsg.c_str(), idMsg.size() + 1, ENET_PACKET_FLAG_RELIABLE));
+            enet_packet_create(msgJson.dump().c_str(), msgJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
     }
 
     // Notify all others
-    std::string bc = std::to_string(PacketTypes::PLAYER_CONNECT)
-        + "|" + std::to_string(newId) + "|0|0";
+
+    json bcJson = {
+        {"type", PacketTypes::PLAYER_CONNECT},
+        {"id", newId},
+        {"x", 0},
+        {"y", 0},
+    };
 
     for (auto& [peer, id] : peerToId_) {
         if (peer != event.peer) {
             enet_peer_send(peer, 0,
-                enet_packet_create(bc.c_str(), bc.size() + 1, ENET_PACKET_FLAG_RELIABLE));
+                enet_packet_create(bcJson.dump().c_str(), bcJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
         }
     }
 
@@ -72,60 +82,70 @@ void Server::handleConnect(const ENetEvent& event) {
     for (auto& [id, p] : players_) {
         std::cout << "player with id: " << p.id << " was sent to newcomer" << std::endl;
         if (id != newId) {  // Skip the new player's own ID
-            std::string msg = std::to_string(PacketTypes::PLAYER_CONNECT)
-                + "|" + std::to_string(id)
-                + "|" + std::to_string(p.x)
-                + "|" + std::to_string(p.y);
+
+            json pJson = {
+                {"type", PacketTypes::PLAYER_CONNECT},
+                {"id", id},
+                {"x", p.x},
+                {"y", p.y},
+            };
 
             enet_peer_send(event.peer, 0,
-                enet_packet_create(msg.c_str(), msg.size() + 1, ENET_PACKET_FLAG_RELIABLE));
-            
-            std::string skin_msg = std::to_string(PacketTypes::SKIN_LINK)
-                + "|" + std::to_string(id)
-                + "|" + p.skin_link;
+                enet_packet_create(pJson.dump().c_str(), pJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
+
+            json skinJson = {
+                {"type", PacketTypes::SKIN_LINK},
+                {"id", id},
+                {"link", p.skin_link},
+            };
 
             enet_peer_send(event.peer, 0,
-                enet_packet_create(skin_msg.c_str(), skin_msg.size() + 1, ENET_PACKET_FLAG_RELIABLE));
+                enet_packet_create(skinJson.dump().c_str(), skinJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
         }
     }
 }
 
 void Server::handleReceive(const ENetEvent& event) {
     auto data = reinterpret_cast<char*>(event.packet->data);
-    auto tokens = split_string(data);
-    if (tokens.size() < 2) return;
+    json packet = json::parse(data);
 
     try {
-        int type = std::stoi(tokens[0]);
-        int playerId = std::stoi(tokens[1]);
-        if (type == PacketTypes::UPDATE_POSITION && tokens.size() == 4) {
-            float x = std::stof(tokens[2]), y = std::stof(tokens[3]);
-            players_[playerId].x = x;
-            players_[playerId].y = y;
+        int type = packet["type"];
+        int playerId = packet["id"];
+        if (type == PacketTypes::UPDATE_POSITION) {
+            std::cout << "position received: " << packet.dump() << std::endl;
+            players_[playerId].x = packet["x"];
+            players_[playerId].y = packet["y"];
 
-            std::string msg = std::to_string(PacketTypes::UPDATE_POSITION)
-                + "|" + std::to_string(playerId)
-                + "|" + std::to_string(x)
-                + "|" + std::to_string(y);
+            json pJson = {
+                {"type", PacketTypes::UPDATE_POSITION},
+                {"id", playerId },
+                {"x", packet["x"]},
+                {"y", packet["y"]},
+            };
+
             for (auto& [peer, id] : peerToId_) {
                 if (peer != event.peer) {
                     enet_peer_send(peer, 0,
-                        enet_packet_create(msg.c_str(), msg.size() + 1,
+                        enet_packet_create(pJson.dump().c_str(), pJson.dump().size() + 1,
                             ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT));
                 }
             }
         }
-        if (type == PacketTypes::SKIN_LINK && tokens.size() == 3) {
+        if (type == PacketTypes::SKIN_LINK) {
             // notify the others of a skin link
-            players_[playerId].skin_link = tokens[2];
+            players_[playerId].skin_link = packet["link"];
 
-            std::string bc = std::to_string(PacketTypes::SKIN_LINK)
-                + "|" + std::to_string(playerId) + "|" + tokens[2];
+            json bcJson = {
+                {"type", PacketTypes::SKIN_LINK},
+                {"id", playerId},
+                {"link", packet["link"]},
+            };
 
             for (auto& [peer, id] : peerToId_) {
                 if (peer != event.peer) {
                     enet_peer_send(peer, 0,
-                        enet_packet_create(bc.c_str(), bc.size() + 1, ENET_PACKET_FLAG_RELIABLE));
+                        enet_packet_create(bcJson.dump().c_str(), bcJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
                 }
             }
         }
@@ -140,11 +160,14 @@ void Server::handleDisconnect(const ENetEvent& event) {
     players_.erase(id);
     peerToId_.erase(event.peer);
 
-    std::string msg = std::to_string(PacketTypes::PLAYER_DISCONNECT)
-        + "|" + std::to_string(id);
+    json msgJson = {
+        {"type", PacketTypes::PLAYER_DISCONNECT},
+        {"id", id}
+    };
+
     for (auto& [peer, _] : peerToId_) {
         enet_peer_send(peer, 0,
-            enet_packet_create(msg.c_str(), msg.size() + 1, ENET_PACKET_FLAG_RELIABLE));
+            enet_packet_create(msgJson.dump().c_str(), msgJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
     }
 }
 

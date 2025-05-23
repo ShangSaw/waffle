@@ -1,25 +1,35 @@
 #include "Renderer.hpp"
+#include "imgui.h"
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
 
 Renderer::Renderer(int width, int height) {
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cerr << "couldn't initialize SDL video module " << std::endl;
 
         exit(EXIT_FAILURE);
     }
+
+
     if (!SDL_CreateWindowAndRenderer("feneettttre", width, height, 0, &window_, &renderer_)) {
         std::cerr << "couldn't create a window and a renderer" << std::endl;
     }
 
+    camera_.w = static_cast<float>(width);
+    camera_.h = static_cast<float>(height);
 
-    // Initialize camera size to the window size
-    int w, h;
-    SDL_GetWindowSize(window_, &w, &h);
-    camera_.w = static_cast<float>(w);
-    camera_.h = static_cast<float>(h);
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    // imgui renderer setup
+    ImGui_ImplSDL3_InitForSDLRenderer(window_, renderer_);
+    ImGui_ImplSDLRenderer3_Init(renderer_);
 }
 
 Renderer::~Renderer() {
     SDL_DestroyRenderer(renderer_);
+    SDL_DestroyTexture(dtarget_);
     SDL_DestroyWindow(window_);
     SDL_Quit();
 }

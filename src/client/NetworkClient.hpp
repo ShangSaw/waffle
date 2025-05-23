@@ -15,9 +15,10 @@ public:
 
 	void handleReceive(const ENetEvent& event);
 
-	/// Sends: UPDATE_POSITION|id|x|y
 	void sendPosition(int id, float x, float y);
 	void sendPacket(std::string& data);
+
+	void reconnect(std::string host, int port);
 
 	// Callbacks you bind in Game:
 	std::function<void(int /*id*/, float, float)>			onPlayerConnect;
