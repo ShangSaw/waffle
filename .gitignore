@@ -3,3 +3,5 @@ imgui/
 out/
 lib/
 .vs/
+all_source_dump.txt
+src/all_source_dump.txt

@@ -35,7 +35,7 @@ ENVOI_SKIN `4|ID|lien_skin.png`
 
 dump des sources pour aider au debug
 ```bash
-find . -type f \( -name '*.cpp' -o -name '*.hpp' \) \
+find src/ -type f \( -name '*.cpp' -o -name '*.hpp' \) \
   -print0 | sort -z | \
   xargs -0 -I{} sh -c 'echo "### {}" ; cat "{}"; echo' \
   > all_source_dump.txt

@@ -21,7 +21,9 @@ private:
     SDL_Texture* textTexture_{ nullptr };
     bool         enterPressed_ = false;
     SDL_FRect    textDest_{};
+    std::string skin_link_ = "";
     std::string  username_ = "";      // Input buffers
     std::string  ip_ = "127.0.0.1";   // Default IP
     std::string  port_ = "12345";
+    int title_size = 0;
 };

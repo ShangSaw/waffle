@@ -7,6 +7,7 @@
 #include "Player.hpp"
 #include <unordered_map>
 #include <filesystem>
+#include "SDL3_ttf/SDL_ttf.h" // Inclusion nécessaire pour TTF_Font
 
 
 class GameScene : public Scene {
@@ -21,6 +22,7 @@ public:
     std::unique_ptr<Scene> nextScene() override;
 
 private:
+    TTF_Font*                       usernameFont_ = nullptr;
     std::unordered_map<int, Player> players_;
     Player                          me_;
     std::string						skin_path;

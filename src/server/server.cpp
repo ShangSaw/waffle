@@ -43,9 +43,10 @@ void Server::run() {
 
 void Server::handleConnect(const ENetEvent& event) {
     int newId = nextId_++;
-    players_[newId] = Player{ newId, "",0.0f, 0.0f};
+    players_[newId] = Player{ newId, "","",0.0f, 0.0f};
     peerToId_[event.peer] = newId;
 
+    std::cout << "---" << std::endl;
     std::cout << "[CONNECT] New player with ID " << newId
         << " from peer " << event.peer
         << std::endl;
@@ -78,7 +79,6 @@ void Server::handleConnect(const ENetEvent& event) {
     }
 
     // Send existing players to the newcomer, but exclude the new player's own ID
-    std::cout << "---" << std::endl;
     for (auto& [id, p] : players_) {
         std::cout << "player with id: " << p.id << " was sent to newcomer" << std::endl;
         if (id != newId) {  // Skip the new player's own ID
@@ -101,6 +101,15 @@ void Server::handleConnect(const ENetEvent& event) {
 
             enet_peer_send(event.peer, 0,
                 enet_packet_create(skinJson.dump().c_str(), skinJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
+
+            json usernameJson{
+                {"type", PacketTypes::SET_USERNAME},
+                {"id", id},
+                {"username", p.username},
+            };
+
+            enet_peer_send(event.peer, 0,
+                enet_packet_create(usernameJson.dump().c_str(), usernameJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
         }
     }
 }
@@ -112,6 +121,7 @@ void Server::handleReceive(const ENetEvent& event) {
     try {
         int type = packet["type"];
         int playerId = packet["id"];
+
         if (type == PacketTypes::UPDATE_POSITION) {
             std::cout << "position received: " << packet.dump() << std::endl;
             players_[playerId].x = packet["x"];
@@ -149,6 +159,26 @@ void Server::handleReceive(const ENetEvent& event) {
                 }
             }
         }
+
+        if (type == PacketTypes::SET_USERNAME) {
+            players_[playerId].username = packet["username"];
+            std::cout << "[SET_USERNAME] Player " << playerId
+                << " set username to: " << players_[playerId].username << std::endl;
+
+            json bcJson = {
+                {"type", PacketTypes::SET_USERNAME},
+                {"id", playerId},
+                {"username", packet["username"]},
+            };
+
+            for (auto& [peer, id] : peerToId_) {
+                if (peer != event.peer) {
+                    enet_peer_send(peer, 0,
+                        enet_packet_create(bcJson.dump().c_str(), bcJson.dump().size() + 1, ENET_PACKET_FLAG_RELIABLE));
+                }
+            }
+        }
+
     }
     catch (const std::exception& e) {
         std::cerr << "Error parsing packet: " << e.what() << std::endl;

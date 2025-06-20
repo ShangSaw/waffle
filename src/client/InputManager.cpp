@@ -11,6 +11,10 @@ void InputManager::pollEvents() {
         case SDL_EVENT_QUIT:
             quit_ = true;
             break;
+        case SDL_EVENT_WINDOW_RESIZED:
+            size_.x = static_cast<float>(e.window.data1);
+            size_.y = static_cast<float>(e.window.data2);
+            break;
         }
     }
 

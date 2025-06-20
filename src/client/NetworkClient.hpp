@@ -25,7 +25,8 @@ public:
 	std::function<void(int /*id*/, std::string)>			onSkinLink;
 	std::function<void(int /*id*/)>			                onPlayerDisconnect;
 	std::function<void(int /*id*/, float, float)>           onPlayerUpdate;
-	std::function<void(int /*yourId*/)>                     onOwnId;
+	std::function<void(int /*id*/)>                         onOwnId;
+	std::function<void(int /*id*/, std::string)>            onSetUsername;
 
 private:
 	bool connected = false;

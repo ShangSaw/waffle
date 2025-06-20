@@ -3,6 +3,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 #include "MainMenuScene.hpp"
+#include "util.hpp"
 #include <iostream>
 
 
@@ -22,6 +23,9 @@ MainMenuScene::MainMenuScene(SceneContext& ctx)
 
     textDest_.x = 0;
     textDest_.y = 0;
+
+    username_ = readFile("username.txt");
+    skin_link_ = readFile("skin_link.txt");
 }
 
 
@@ -48,15 +52,14 @@ void MainMenuScene::init() {
         return;
     }
     textTexture_ = SDL_CreateTextureFromSurface(ctx_.renderer.renderer_, surf);
-    textDest_.x = static_cast<float>(1280/2 - surf->w/2);
     textDest_.y = 50;
     textDest_.w = static_cast<float>(surf->w);
     textDest_.h = static_cast<float>(surf->h);
+    title_size = surf->w;
     SDL_DestroySurface(surf);
 }
 
 void MainMenuScene::processInput() {
-
     ctx_.input.pollEvents();
     if (ctx_.input.quitting()) quit_ = true;
 }
@@ -65,12 +68,14 @@ void MainMenuScene::update() {
 }
 
 void MainMenuScene::render() {
+    ctx_.renderer.handleResize(static_cast<int>(ctx_.input.size_.x), static_cast<int>(ctx_.input.size_.y));
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
     ctx_.renderer.clear();
     if (textTexture_) {
+        textDest_.x = static_cast<float>(ctx_.input.size_.x / 2 - title_size / 2);
         SDL_RenderTexture(ctx_.renderer.renderer_, textTexture_, nullptr, &textDest_);
     }
 
@@ -80,18 +85,17 @@ void MainMenuScene::render() {
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_Appearing);
 
-    ImGui::Begin("Connection Settings", nullptr,
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize
-    );
+    ImGui::Begin("Connection Settings", nullptr, 0);
 
     // Larger font for window
-    ImGui::SetWindowFontScale(1.2f);
+    ImGui::SetWindowFontScale(1.4f);
 
     // Username input
     ImGui::Text("Username:");
     ImGui::InputText("##username", &username_);
+
+    ImGui::Text("skin link:");
+    ImGui::InputText("##skin link", &skin_link_);
 
     // IP Address input
     ImGui::Text("IP Address:");
@@ -103,6 +107,17 @@ void MainMenuScene::render() {
 
     // Connect/Quit buttons
     if (ImGui::Button("Connect", ImVec2(-FLT_MIN, 40))) {
+
+        if (username_ != "")
+            writeFile("username.txt", username_);
+        else
+            writeFile("username.txt", "konar sans nom");
+
+        if (skin_link_ != "")
+            writeFile("skin_link.txt", skin_link_);
+        else
+            writeFile("skin_link.txt", "https://pngimg.com/uploads/anime_girl/anime_girl_PNG93.png");
+
         ctx_.network.reconnect(ip_, std::stoi(port_));
         enterPressed_ = true;
     }
@@ -110,14 +125,6 @@ void MainMenuScene::render() {
     if (ImGui::Button("Quit", ImVec2(-FLT_MIN, 40))) {
         std::cout << "on quitte le menu" << std::endl;
         quit_ = true;
-    }
-
-    if (ImGui::CollapsingHeader("Options")) {
-        // Fullscreen toggle
-        bool currentFullscreen = (SDL_GetWindowFlags(ctx_.renderer.window_) & SDL_WINDOW_FULLSCREEN) != 0;
-        if (ImGui::Checkbox("Fullscreen", &currentFullscreen)) {
-            SDL_SetWindowFullscreen(ctx_.renderer.window_, currentFullscreen);
-        }
     }
 
     ImGui::End();

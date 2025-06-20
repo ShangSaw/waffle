@@ -8,6 +8,7 @@
 struct Player {
     int   id;
     std::string skin_link = "";
+    std::string username = "";
     float x, y;
 };
 

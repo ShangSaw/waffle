@@ -90,6 +90,9 @@ void NetworkClient::handleReceive(const ENetEvent& event) {
         case PacketTypes::SKIN_LINK:
             onSkinLink(packet["id"], packet["link"]);
             break;
+        case PacketTypes::SET_USERNAME:
+            onSetUsername(packet["id"], packet["username"]);
+            break;
         default:
             break;
         }

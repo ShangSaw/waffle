@@ -11,6 +11,7 @@ public:
 	void			pollEvents();
 	Coordonnees     movement()   const { return movement_; }
 	bool			quitting()   const { return quit_; }
+	Coordonnees		size_{ 1280, 720 };
 
 private:
 	bool			quit_ = false;

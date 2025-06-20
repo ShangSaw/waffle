@@ -26,7 +26,6 @@ void Game::run() {
 
         currentScene_->processInput();
         currentScene_->update();
-
     
         currentScene_->render();
 

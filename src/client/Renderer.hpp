@@ -24,10 +24,16 @@ public:
     /// Draw a world rectangle with optional texture
     void draw(const SDL_FRect& worldRect, SDL_Texture* texture = nullptr);
 
+    void handleResize(int width, int height);
+
 
     SDL_Window*   window_   = nullptr;
     SDL_Renderer* renderer_ = nullptr;
     SDL_Texture* dtarget_   = nullptr;
 
     SDL_FRect     camera_   = { 0, 0, 0, 0 };
+
+
+    int width;
+    int height;
 };

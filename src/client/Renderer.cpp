@@ -12,7 +12,7 @@ Renderer::Renderer(int width, int height) {
     }
 
 
-    if (!SDL_CreateWindowAndRenderer("feneettttre", width, height, 0, &window_, &renderer_)) {
+    if (!SDL_CreateWindowAndRenderer("feneettttre", width, height, SDL_WINDOW_RESIZABLE, &window_, &renderer_)) {
         std::cerr << "couldn't create a window and a renderer" << std::endl;
     }
 
@@ -66,4 +66,10 @@ void Renderer::draw(const SDL_FRect& worldRect, SDL_Texture* texture) {
         SDL_SetRenderDrawColor(renderer_, 255, 0, 0, 255);
         SDL_RenderFillRect(renderer_, &dst);
     }
+}
+
+void Renderer::handleResize(int width, int height) {
+    camera_.w = static_cast<float>(width);
+    camera_.h = static_cast<float>(height);
+    SDL_SetWindowSize(window_, width, height);
 }
